@@ -1,0 +1,2 @@
+[console_scripts]
+agentse = agentse.cli:app
