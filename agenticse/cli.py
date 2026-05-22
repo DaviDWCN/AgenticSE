@@ -8,14 +8,23 @@ term lessons, graph topology and the active working-memory session.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
 from typing import Iterable, List, Optional
 
 from agenticse.memory import AgentMemorySubsystem
-from agenticse.memory.persistence import load_snapshot, save_snapshot
+from agenticse.memory.persistence import (
+    backup_path,
+    load_snapshot,
+    save_snapshot,
+    snapshot_lock,
+)
 from agenticse.memory.schemas import Lesson, Resolution, SensoryEvent
+
+
+DEFAULT_MAX_PAYLOAD_BYTES = 1_000_000
 
 
 def default_store_path() -> Path:
@@ -25,10 +34,16 @@ def default_store_path() -> Path:
     return Path.cwd() / ".agenticse" / "state.json"
 
 
-def load_or_new(path: Path) -> AgentMemorySubsystem:
+def load_or_new(path: Path, restore_backup: bool = False) -> AgentMemorySubsystem:
     if not path.exists():
         return AgentMemorySubsystem()
-    return AgentMemorySubsystem.from_snapshot(load_snapshot(path))
+    try:
+        return AgentMemorySubsystem.from_snapshot(load_snapshot(path))
+    except (ValueError, json.JSONDecodeError):
+        backup = backup_path(path)
+        if restore_backup and backup.exists():
+            return AgentMemorySubsystem.from_snapshot(load_snapshot(backup))
+        raise
 
 
 def persist(ams: AgentMemorySubsystem, path: Path) -> None:
@@ -51,8 +66,20 @@ def build_lesson(
 
 def read_payload(args: argparse.Namespace) -> str:
     if args.payload_file:
-        return Path(args.payload_file).read_text(encoding="utf-8")
-    return args.payload
+        path = Path(args.payload_file)
+        size = path.stat().st_size
+        if size > args.max_payload_bytes:
+            raise ValueError(
+                f"payload file is {size} bytes; limit is {args.max_payload_bytes} bytes"
+            )
+        return path.read_text(encoding="utf-8")
+    payload = args.payload
+    size = len(payload.encode("utf-8"))
+    if size > args.max_payload_bytes:
+        raise ValueError(
+            f"payload is {size} bytes; limit is {args.max_payload_bytes} bytes"
+        )
+    return payload
 
 
 def add_common_options(parser: argparse.ArgumentParser) -> None:
@@ -60,6 +87,17 @@ def add_common_options(parser: argparse.ArgumentParser) -> None:
         "--store",
         default=str(default_store_path()),
         help="Snapshot path. Defaults to $AGENTICSE_STORE or .agenticse/state.json.",
+    )
+    parser.add_argument(
+        "--lock-timeout",
+        type=float,
+        default=5.0,
+        help="Seconds to wait for the snapshot lock before failing.",
+    )
+    parser.add_argument(
+        "--restore-backup",
+        action="store_true",
+        help="Load the .bak snapshot if the primary snapshot is corrupted.",
     )
 
 
@@ -86,6 +124,7 @@ def configure_parser() -> argparse.ArgumentParser:
     ingest = subcommands.add_parser("ingest", help="Ingest a sensory event.")
     ingest.add_argument("--source", required=True)
     ingest.add_argument("--kind", default="raw")
+    ingest.add_argument("--max-payload-bytes", type=int, default=DEFAULT_MAX_PAYLOAD_BYTES)
     payload_group = ingest.add_mutually_exclusive_group(required=True)
     payload_group.add_argument("--payload")
     payload_group.add_argument("--payload-file")
@@ -125,7 +164,12 @@ def configure_parser() -> argparse.ArgumentParser:
 
 def run(args: argparse.Namespace) -> int:
     store_path = Path(args.store)
-    ams = load_or_new(store_path)
+    with snapshot_lock(store_path, timeout_seconds=args.lock_timeout):
+        return run_locked(args, store_path)
+
+
+def run_locked(args: argparse.Namespace, store_path: Path) -> int:
+    ams = load_or_new(store_path, restore_backup=args.restore_backup)
 
     if args.command == "start-task":
         ams.start_task(args.task, active_files=args.active_file, token_budget=args.token_budget)
@@ -188,14 +232,20 @@ def run(args: argparse.Namespace) -> int:
         return 0
 
     if args.command == "context":
-        print(ams.controller.render_context())
+        controller = getattr(ams, "_controller", None)
+        print(controller.render_context() if controller is not None else "No active task.")
         return 0
 
     if args.command == "stats":
+        snapshot_size = store_path.stat().st_size if store_path.exists() else 0
+        backup = backup_path(store_path)
         print(f"Vector records: {len(ams.ltm.vector)}")
         print(f"Graph nodes: {ams.ltm.graph.node_count()}")
         print(f"Graph edges: {ams.ltm.graph.edge_count()}")
         print(f"Active task: {'yes' if getattr(ams, '_controller', None) else 'no'}")
+        print(f"Store path: {store_path}")
+        print(f"Snapshot size: {snapshot_size} bytes")
+        print(f"Backup available: {'yes' if backup.exists() else 'no'}")
         return 0
 
     raise ValueError(f"Unknown command: {args.command}")

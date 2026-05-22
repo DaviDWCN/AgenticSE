@@ -9,16 +9,22 @@ session into a versioned JSON document.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
+
+import fcntl
 
 from agenticse.memory.long_term import LongTermMemoryMatrix
 from agenticse.memory.schemas import WorkingMemoryState, state_from_dict
 
 
 SNAPSHOT_VERSION = 1
+DEFAULT_LOCK_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass
@@ -103,13 +109,57 @@ def restore_ams(snapshot: AgentMemorySnapshot) -> Any:
 
 
 def save_snapshot(snapshot: AgentMemorySnapshot, path: Path) -> None:
-    """Write ``snapshot`` to ``path`` as UTF-8 JSON."""
+    """Write ``snapshot`` to ``path`` as UTF-8 JSON.
+
+    Writes are atomic: the JSON is first written and validated in a temporary
+    file, the previous snapshot is copied to ``*.bak`` if present, and then the
+    temporary file replaces the target path.
+    """
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(snapshot.to_json() + "\n", encoding="utf-8")
+    payload = snapshot.to_json() + "\n"
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    tmp_path.write_text(payload, encoding="utf-8")
+    AgentMemorySnapshot.from_json(tmp_path.read_text(encoding="utf-8"))
+    if path.exists():
+        shutil.copy2(path, backup_path(path))
+    os.replace(str(tmp_path), str(path))
 
 
 def load_snapshot(path: Path) -> AgentMemorySnapshot:
     """Load a snapshot from ``path``."""
 
     return AgentMemorySnapshot.from_json(path.read_text(encoding="utf-8"))
+
+
+def backup_path(path: Path) -> Path:
+    """Return the backup path used for ``path``."""
+
+    return path.with_name(f"{path.name}.bak")
+
+
+@contextmanager
+def snapshot_lock(
+    path: Path,
+    timeout_seconds: float = DEFAULT_LOCK_TIMEOUT_SECONDS,
+) -> Iterator[None]:
+    """Hold an exclusive lock for a snapshot read-modify-write cycle."""
+
+    if timeout_seconds < 0:
+        raise ValueError("timeout_seconds must be non-negative")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_name(f"{path.name}.lock")
+    with lock_path.open("a", encoding="utf-8") as lock_file:
+        deadline = time.time() + timeout_seconds
+        while True:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() >= deadline:
+                    raise TimeoutError(f"Timed out waiting for snapshot lock: {lock_path}")
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)

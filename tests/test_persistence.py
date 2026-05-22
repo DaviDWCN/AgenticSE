@@ -5,6 +5,7 @@ import pytest
 from agenticse.memory import AgentMemorySubsystem, LongTermMemoryMatrix
 from agenticse.memory.persistence import (
     AgentMemorySnapshot,
+    backup_path,
     load_snapshot,
     restore_ltm,
     save_snapshot,
@@ -59,6 +60,22 @@ def test_save_and_load_snapshot_file(tmp_path: Path):
     restored = AgentMemorySubsystem.from_snapshot(load_snapshot(path))
 
     assert restored.ltm.search_lessons("bounded graph", tags=["graph"])
+
+
+def test_save_snapshot_writes_backup_on_second_save(tmp_path: Path):
+    path = tmp_path / "state.json"
+    first = AgentMemorySubsystem()
+    first.record_lesson(Lesson(content="First snapshot"))
+    second = AgentMemorySubsystem()
+    second.record_lesson(Lesson(content="Second snapshot"))
+
+    save_snapshot(first.snapshot(), path)
+    save_snapshot(second.snapshot(), path)
+
+    backup = AgentMemorySubsystem.from_snapshot(load_snapshot(backup_path(path)))
+    current = AgentMemorySubsystem.from_snapshot(load_snapshot(path))
+    assert backup.ltm.search_lessons("First snapshot")
+    assert current.ltm.search_lessons("Second snapshot")
 
 
 def test_snapshot_is_not_mutated_by_later_ams_changes():

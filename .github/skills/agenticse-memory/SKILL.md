@@ -54,9 +54,31 @@ Use this skill when a coding task benefits from durable memory across tool calls
 
 By default, AgenticSE writes `.agenticse/state.json` in the workspace. Override it with `--store <path>` or `AGENTICSE_STORE` when a task needs an isolated memory file.
 
+Snapshot writes are atomic and keep a `.bak` backup. CLI commands hold a local snapshot lock during load-modify-save cycles, so repeated agent invocations do not corrupt the JSON file.
+
+## Recovery
+
+If the primary snapshot is corrupted, retry with backup recovery:
+
+```bash
+agenticse --restore-backup stats
+agenticse --restore-backup awaken "<task>"
+```
+
+Use `agenticse stats` to inspect the store path, snapshot size, backup availability and active-task status.
+
+## Payload Limits
+
+`ingest` rejects payloads larger than 1,000,000 bytes by default. For large logs, extract the relevant stack trace or error block first, or set a deliberate limit:
+
+```bash
+agenticse ingest --source terminal --kind stack_trace --payload-file /tmp/error.txt --max-payload-bytes 2000000
+```
+
 ## Guidance
 
 - Store concise lessons, not raw transcripts.
 - Ingest terminal failures, stack traces, active-file changes and important user decisions.
 - Do not ingest secrets, credentials or noisy telemetry.
 - Prefer explicit anchors for recall when the task names a class, method, module or file.
+- Use a separate `--store` path for independent benchmark runs or truly parallel agents.
