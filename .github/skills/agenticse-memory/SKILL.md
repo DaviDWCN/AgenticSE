@@ -82,6 +82,17 @@ agenticse --restore-backup awaken "<task>"
 
 Use `agenticse stats` to inspect the store path, snapshot size, backup availability and active-task status.
 
+## Evaluation
+
+Use golden-query checks when you need to verify that AgenticSE is not merely storing memory, but recalling useful context:
+
+```bash
+agenticse eval --case "recover corrupted snapshot|backup,--restore-backup,snapshot|AgentMemorySnapshot"
+agenticse eval --case "choose preferred repo memory|agenticse-memory,repo memory,agent-private|agenticse-memory"
+```
+
+Each case uses `query|expected term,another term|optional anchor,anchor2`. The command exits non-zero when any expected term is missing, so it can be used in tests, CI or dogfooding checklists.
+
 ## Payload Limits
 
 `ingest` rejects payloads larger than 1,000,000 bytes by default. For large logs, extract the relevant stack trace or error block first, or set a deliberate limit:

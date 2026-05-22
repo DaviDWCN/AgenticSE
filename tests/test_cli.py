@@ -132,3 +132,46 @@ def test_cli_restore_backup_for_corrupted_primary(tmp_path: Path, capsys):
     assert main(["--store", str(store), "--restore-backup", "awaken", "First good state"]) == 0
 
     assert "First good state" in capsys.readouterr().out
+
+
+def test_cli_eval_passes_when_expected_terms_are_recalled(tmp_path: Path, capsys):
+    store = tmp_path / "state.json"
+    assert main([
+        "--store",
+        str(store),
+        "record-lesson",
+        "Recover corrupted snapshots with --restore-backup",
+        "--class",
+        "AgentMemorySnapshot",
+    ]) == 0
+
+    code = main([
+        "--store",
+        str(store),
+        "eval",
+        "--case",
+        "recover corrupted snapshot|restore-backup,corrupted|AgentMemorySnapshot",
+    ])
+
+    output = capsys.readouterr().out
+    assert code == 0
+    assert "PASS 1" in output
+    assert "Memory eval: 1/1 passed" in output
+
+
+def test_cli_eval_fails_when_expected_terms_are_missing(tmp_path: Path, capsys):
+    store = tmp_path / "state.json"
+    assert main(["--store", str(store), "record-lesson", "Payload limits protect snapshots"]) == 0
+
+    code = main([
+        "--store",
+        str(store),
+        "eval",
+        "--case",
+        "payload safety|nonexistent-term",
+    ])
+
+    output = capsys.readouterr().out
+    assert code == 1
+    assert "FAIL 1" in output
+    assert "missing: nonexistent-term" in output

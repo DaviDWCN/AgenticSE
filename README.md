@@ -31,7 +31,7 @@ pip install -e ".[dev]"   # for pytest
 python -m pytest tests/ -v
 ```
 
-51 unit tests cover every layer, workflow, persistence snapshots and the CLI.
+53 unit tests cover every layer, workflow, persistence snapshots, the CLI and golden-query eval.
 
 ## Agent CLI
 
@@ -48,12 +48,18 @@ agenticse record-dependency CheckoutService CartService
 agenticse awaken "Fix CheckoutService cart bug" --anchor CheckoutService
 agenticse ingest --source terminal --kind stack_trace --payload-file /tmp/error.txt
 agenticse stats
+agenticse eval --case "recover corrupted snapshot|backup,--restore-backup,snapshot|AgentMemorySnapshot"
 agenticse finish-task --lesson "Checkout totals need empty-cart fixture coverage"
 ```
 
 Use `--store path/to/state.json` or `AGENTICSE_STORE` to isolate memory per
 workspace, branch, benchmark run or agent. Use `--restore-backup` if the primary
 snapshot file is corrupted.
+
+Use `agenticse eval` with golden queries to check whether memory retrieval is
+useful enough for agents to trust. Each case uses
+`query|expected term,another term|optional anchor,anchor2`; the command exits
+non-zero if any expected term is missing from the recalled context.
 
 ## Quick start
 

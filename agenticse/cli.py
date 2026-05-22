@@ -12,7 +12,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 from agenticse.memory import AgentMemorySubsystem
 from agenticse.memory.persistence import (
@@ -25,6 +25,57 @@ from agenticse.memory.schemas import Lesson, Resolution, SensoryEvent
 
 
 DEFAULT_MAX_PAYLOAD_BYTES = 1_000_000
+
+
+def parse_eval_case(raw: str) -> Tuple[str, List[str], List[str]]:
+    """Parse ``query|term1,term2|anchor1,anchor2`` eval case syntax."""
+
+    parts = [part.strip() for part in raw.split("|", 2)]
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        raise ValueError(
+            "eval cases must use: query|expected term,another term|optional anchor"
+        )
+    expected_terms = [term.strip() for term in parts[1].split(",") if term.strip()]
+    anchors = []
+    if len(parts) == 3:
+        anchors = [anchor.strip() for anchor in parts[2].split(",") if anchor.strip()]
+    if not expected_terms:
+        raise ValueError("eval case must include at least one expected term")
+    return parts[0], expected_terms, anchors
+
+
+def evaluate_cases(
+    ams: AgentMemorySubsystem,
+    raw_cases: Iterable[str],
+    top_k_lessons: int,
+    upstream_depth: int,
+    downstream_depth: int,
+) -> Tuple[int, int]:
+    """Run golden-query retrieval checks and print a compact report."""
+
+    cases = [parse_eval_case(raw) for raw in raw_cases]
+    if not cases:
+        raise ValueError("at least one --case is required")
+
+    passed = 0
+    for index, (query, expected_terms, anchors) in enumerate(cases, start=1):
+        rendered = ams.awaken(
+            task_input=query,
+            explicit_anchors=anchors,
+            top_k_lessons=top_k_lessons,
+            upstream_depth=upstream_depth,
+            downstream_depth=downstream_depth,
+        ).render_prompt()
+        haystack = rendered.lower()
+        missing = [term for term in expected_terms if term.lower() not in haystack]
+        if missing:
+            print(f"FAIL {index}: {query}")
+            print(f"  missing: {', '.join(missing)}")
+        else:
+            print(f"PASS {index}: {query}")
+            passed += 1
+    print(f"Memory eval: {passed}/{len(cases)} passed")
+    return passed, len(cases)
 
 
 def default_store_path() -> Path:
@@ -121,6 +172,17 @@ def configure_parser() -> argparse.ArgumentParser:
     awaken.add_argument("--upstream-depth", type=int, default=2)
     awaken.add_argument("--downstream-depth", type=int, default=1)
 
+    eval_parser = subcommands.add_parser("eval", help="Run golden-query memory checks.")
+    eval_parser.add_argument(
+        "--case",
+        action="append",
+        default=[],
+        help="Case format: 'query|expected term,another term|optional anchor,anchor2'.",
+    )
+    eval_parser.add_argument("--top-k-lessons", type=int, default=5)
+    eval_parser.add_argument("--upstream-depth", type=int, default=2)
+    eval_parser.add_argument("--downstream-depth", type=int, default=1)
+
     ingest = subcommands.add_parser("ingest", help="Ingest a sensory event.")
     ingest.add_argument("--source", required=True)
     ingest.add_argument("--kind", default="raw")
@@ -188,6 +250,16 @@ def run_locked(args: argparse.Namespace, store_path: Path) -> int:
         ).render_prompt()
         print(context or "No relevant memory recalled.")
         return 0
+
+    if args.command == "eval":
+        passed, total = evaluate_cases(
+            ams,
+            args.case,
+            top_k_lessons=args.top_k_lessons,
+            upstream_depth=args.upstream_depth,
+            downstream_depth=args.downstream_depth,
+        )
+        return 0 if passed == total else 1
 
     if args.command == "ingest":
         event = SensoryEvent(source=args.source, payload=read_payload(args), kind=args.kind)
