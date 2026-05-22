@@ -18,11 +18,38 @@ dependency-free Python library.
 | §4.2 | Asynchronous consolidation / reflection | `agenticse.memory.workflows.consolidate_session` |
 | —   | One-stop façade for orchestrators | `agenticse.memory.AgentMemorySubsystem` |
 
+## Use as a Copilot Skill (other repositories)
+
+Add AgenticSE memory to any GitHub Copilot-enabled repository in two steps:
+
+**1. Copy the skill definition** into your repo:
+
+```
+.github/skills/agenticse-memory/SKILL.md
+```
+
+Copy the file from [DaviDWCN/AgenticSE](https://github.com/DaviDWCN/AgenticSE/blob/main/.github/skills/agenticse-memory/SKILL.md).
+
+**2. Pre-install the CLI** by adding this step to your `.github/workflows/copilot-setup-steps.yml`:
+
+```yaml
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Install agenticse
+        run: pip install git+https://github.com/DaviDWCN/AgenticSE.git
+```
+
+Once merged to your default branch, Copilot's cloud agent will have the `agenticse` CLI available and will follow the skill's memory workflow automatically.
+
 ## Install
 
 ```bash
-pip install -e .
-pip install -e ".[dev]"   # for pytest
+pip install git+https://github.com/DaviDWCN/AgenticSE.git
+pip install -e ".[dev]"   # for pytest (clone required)
 ```
 
 ## Tests
