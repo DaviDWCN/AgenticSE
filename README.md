@@ -31,7 +31,26 @@ pip install -e ".[dev]"   # for pytest
 python -m pytest tests/ -v
 ```
 
-36 unit tests cover every layer and workflow.
+44 unit tests cover every layer, workflow, persistence snapshots and the CLI.
+
+## Agent CLI
+
+AgenticSE includes a small stdlib-only CLI for coding agents. It persists a
+workspace snapshot at `.agenticse/state.json` by default, so repeated shell
+invocations share long-term lessons, topology and the active working-memory
+session.
+
+```bash
+agenticse start-task "Fix checkout total regression" --active-file app/CheckoutService.java
+agenticse record-lesson "Null-check cart before computing tax" --class CartService --tag bug-fix
+agenticse record-dependency CheckoutService CartService
+agenticse awaken "Fix CheckoutService cart bug" --anchor CheckoutService
+agenticse ingest --source terminal --kind stack_trace --payload-file /tmp/error.txt
+agenticse finish-task --lesson "Checkout totals need empty-cart fixture coverage"
+```
+
+Use `--store path/to/state.json` or `AGENTICSE_STORE` to isolate memory per
+workspace, branch, benchmark run or agent.
 
 ## Quick start
 

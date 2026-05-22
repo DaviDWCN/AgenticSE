@@ -8,6 +8,11 @@ setup(
     packages=find_packages(exclude=("tests", "examples")),
     python_requires=">=3.8",
     install_requires=[],
+    entry_points={
+        "console_scripts": [
+            "agenticse=agenticse.cli:main",
+        ],
+    },
     extras_require={
         "dev": ["pytest>=7.0"],
     },

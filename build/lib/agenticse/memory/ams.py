@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Iterable, List, Optional
 
 from agenticse.memory.long_term import LongTermMemoryMatrix
@@ -137,36 +136,3 @@ class AgentMemorySubsystem:
         self._controller = None
         self._last_task_input = ""
         return stored
-
-    # ------------------------------------------------------------------ #
-    # Persistence
-    # ------------------------------------------------------------------ #
-    def snapshot(self):
-        """Return a versioned snapshot of LTM and the active task, if any."""
-
-        from agenticse.memory.persistence import snapshot_ams
-
-        return snapshot_ams(self)
-
-    def save(self, path: str) -> None:
-        """Persist the current AMS snapshot to ``path``."""
-
-        from agenticse.memory.persistence import save_snapshot
-
-        save_snapshot(self.snapshot(), Path(path))
-
-    @classmethod
-    def from_snapshot(cls, snapshot):
-        """Restore an AMS instance from an :class:`AgentMemorySnapshot`."""
-
-        from agenticse.memory.persistence import restore_ams
-
-        return restore_ams(snapshot)
-
-    @classmethod
-    def load(cls, path: str) -> "AgentMemorySubsystem":
-        """Load an AMS instance from a snapshot file."""
-
-        from agenticse.memory.persistence import load_snapshot
-
-        return cls.from_snapshot(load_snapshot(Path(path)))

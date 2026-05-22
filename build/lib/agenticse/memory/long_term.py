@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Iterable, List, Optional
 
 from agenticse.memory.graph_store import InMemoryGraphStore
 from agenticse.memory.schemas import AwakeningContext, Lesson, RetrievedMemory
@@ -84,20 +84,3 @@ class LongTermMemoryMatrix:
                 seen.add(key)
                 topology.append(hit)
         return AwakeningContext(lessons=lessons, topology=topology)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Return a JSON-serialisable snapshot of both LTM engines."""
-
-        return {
-            "vector": self.vector.to_dict(),
-            "graph": self.graph.to_dict(),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LongTermMemoryMatrix":
-        """Restore the dual-engine LTM from :meth:`to_dict` output."""
-
-        return cls(
-            vector_store=InMemoryVectorStore.from_dict(data.get("vector", {})),
-            graph_store=InMemoryGraphStore.from_dict(data.get("graph", {})),
-        )

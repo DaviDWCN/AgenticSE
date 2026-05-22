@@ -1,9 +1,11 @@
 README.md
 setup.py
 agenticse/__init__.py
+agenticse/cli.py
 agenticse.egg-info/PKG-INFO
 agenticse.egg-info/SOURCES.txt
 agenticse.egg-info/dependency_links.txt
+agenticse.egg-info/entry_points.txt
 agenticse.egg-info/requires.txt
 agenticse.egg-info/top_level.txt
 agenticse/memory/__init__.py
@@ -11,12 +13,15 @@ agenticse/memory/ams.py
 agenticse/memory/embeddings.py
 agenticse/memory/graph_store.py
 agenticse/memory/long_term.py
+agenticse/memory/persistence.py
 agenticse/memory/schemas.py
 agenticse/memory/vector_store.py
 agenticse/memory/workflows.py
 agenticse/memory/working.py
 tests/test_ams.py
+tests/test_cli.py
 tests/test_graph_store.py
+tests/test_persistence.py
 tests/test_vector_store.py
 tests/test_workflows.py
 tests/test_working_memory.py

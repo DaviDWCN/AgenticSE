@@ -16,7 +16,6 @@ consolidation / reflection).
 from agenticse.memory.ams import AgentMemorySubsystem
 from agenticse.memory.graph_store import InMemoryGraphStore
 from agenticse.memory.long_term import LongTermMemoryMatrix
-from agenticse.memory.persistence import AgentMemorySnapshot
 from agenticse.memory.schemas import (
     Lesson,
     MemorySegments,
@@ -29,7 +28,6 @@ from agenticse.memory.working import WorkingMemoryController
 
 __all__ = [
     "AgentMemorySubsystem",
-    "AgentMemorySnapshot",
     "InMemoryGraphStore",
     "InMemoryVectorStore",
     "Lesson",
