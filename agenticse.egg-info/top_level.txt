@@ -1,1 +1,3 @@
 agenticse
+build
+dist

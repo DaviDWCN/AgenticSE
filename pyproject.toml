@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenticse"
+version = "0.1.0"
+description = "Agent Memory Subsystem (AMS) for industrial-grade Coding Agents."
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [{ name = "AgenticSE contributors" }]
+keywords = ["agent", "memory", "coding-agent", "llm", "ams"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "build", "twine"]
+
+[project.scripts]
+agenticse = "agenticse.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/DaviDWCN/AgenticSE"
+Repository = "https://github.com/DaviDWCN/AgenticSE"
+Issues = "https://github.com/DaviDWCN/AgenticSE/issues"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "examples*"]

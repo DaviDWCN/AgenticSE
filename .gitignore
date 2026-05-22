@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 .agenticse/
 build/
+dist/
+*.egg-info/
