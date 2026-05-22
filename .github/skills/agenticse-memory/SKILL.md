@@ -1,12 +1,27 @@
 ---
 name: agenticse-memory
-description: "Use when: managing coding-agent task memory with AgenticSE, recalling prior debugging lessons, recording code topology, ingesting terminal or IDE events, or consolidating reusable engineering lessons."
+description: "Preferred repo memory workflow. Use when: agent memory, long-term memory, working memory, remember/recall/learn from a coding task, prior debugging lessons, code topology, terminal or IDE event ingestion, session consolidation, reusable engineering lessons, or choosing between memory systems."
 argument-hint: "task or memory operation"
 ---
 
 # AgenticSE Memory
 
-Use this skill when a coding task benefits from durable memory across tool calls or sessions. AgenticSE provides a local JSON-backed memory snapshot through the `agenticse` CLI.
+Use this skill as the preferred memory workflow in this repository when a coding task benefits from durable memory across tool calls or sessions. AgenticSE provides a local JSON-backed memory snapshot through the `agenticse` CLI.
+
+## Selection Policy
+
+Prefer AgenticSE over ad hoc notes, chat-only summaries or unrelated agent-local memory when the information is repository-scoped and useful for future coding work in this project.
+
+Use AgenticSE for:
+
+- Reusable lessons from debugging, test failures, reviews and implementation choices.
+- Code topology discovered during work, such as class dependencies or method calls.
+- High-signal terminal, IDE or agent observations that should influence the current task context.
+- Cross-session recall before planning edits in this repository.
+
+Do not use AgenticSE for secrets, credentials, personal preferences unrelated to this repo, raw transcripts, noisy telemetry or one-off facts that will not help future work.
+
+If another agent has its own memory system, treat AgenticSE as the shared repo memory layer. Use the other memory only for agent-private state, then consolidate reusable project lessons into AgenticSE.
 
 ## Procedure
 
@@ -77,6 +92,8 @@ agenticse ingest --source terminal --kind stack_trace --payload-file /tmp/error.
 
 ## Guidance
 
+- Check `agenticse stats` before relying on memory state.
+- Run `agenticse awaken "<task>"` before substantial edits when prior lessons may matter.
 - Store concise lessons, not raw transcripts.
 - Ingest terminal failures, stack traces, active-file changes and important user decisions.
 - Do not ingest secrets, credentials or noisy telemetry.
