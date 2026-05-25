@@ -136,9 +136,11 @@ See [`examples/ams_demo.py`](examples/ams_demo.py) for the full lifecycle.
 * **No raw history to the LLM.** `WorkingMemoryController._enforce_budget`
   guarantees the rendered context never exceeds the configured budget;
   older entries are *demoted* (high → mid → low) before being evicted.
-* **Stack traces are pinned** to the high-res tier so the §1.1 retention
-  target (≥ 95 % lossless retention of critical traces) is structurally
-  enforced.
+* **Stack traces are pinned** to the high-res tier and non-critical context is
+  demoted first, so the §1.1 retention target (≥ 95 % lossless retention of
+  critical traces) is structurally supported. If the configured budget is too
+  small to hold a trace verbatim, the controller keeps the largest high-res
+  prefix that fits instead of silently demoting it.
 * **Dual-engine recall.** Awakening fans out a vector lesson search *and*
   a bounded-depth graph walk (2 upstream / 1 downstream by default) so the
   agent sees both "what bit us last time" and "what is connected to this

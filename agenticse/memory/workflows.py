@@ -8,7 +8,7 @@ orchestrator (LangGraph, custom event loop, ...).
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, List, Optional, Set
 
 from agenticse.memory.long_term import LongTermMemoryMatrix
@@ -38,15 +38,13 @@ class PerceptionPolicy:
     * ``min_payload_chars`` — drop trivially short payloads (e.g. blank ticks).
     """
 
-    allowed_sources: Set[str] = None  # type: ignore[assignment]
-    noisy_substrings: Set[str] = None  # type: ignore[assignment]
+    allowed_sources: Set[str] = field(
+        default_factory=lambda: {"ide", "terminal", "user", "agent"}
+    )
+    noisy_substrings: Set[str] = field(
+        default_factory=lambda: {"DEBUG heartbeat", "keepalive"}
+    )
     min_payload_chars: int = 1
-
-    def __post_init__(self) -> None:
-        if self.allowed_sources is None:
-            self.allowed_sources = {"ide", "terminal", "user", "agent"}
-        if self.noisy_substrings is None:
-            self.noisy_substrings = {"DEBUG heartbeat", "keepalive"}
 
 
 def perception_filter(

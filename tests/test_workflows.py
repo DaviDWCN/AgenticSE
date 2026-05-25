@@ -103,3 +103,13 @@ def test_perception_policy_custom_overrides():
         SensoryEvent(source="ide", payload="ignored"),
     ]
     assert [e.payload for e in perception_filter(events, pol)] == ["hello"]
+
+
+def test_perception_policy_defaults_are_independent():
+    first = PerceptionPolicy()
+    second = PerceptionPolicy()
+
+    first.allowed_sources.add("sensor")
+
+    assert "sensor" in first.allowed_sources
+    assert "sensor" not in second.allowed_sources

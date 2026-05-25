@@ -1,7 +1,10 @@
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
+import agenticse.memory.persistence as persistence
 from agenticse.memory import AgentMemorySubsystem, LongTermMemoryMatrix
 from agenticse.memory.persistence import (
     AgentMemorySnapshot,
@@ -9,6 +12,7 @@ from agenticse.memory.persistence import (
     load_snapshot,
     restore_ltm,
     save_snapshot,
+    snapshot_lock,
     snapshot_ltm,
 )
 from agenticse.memory.schemas import Lesson, SensoryEvent
@@ -93,3 +97,49 @@ def test_snapshot_is_not_mutated_by_later_ams_changes():
 def test_snapshot_rejects_unknown_version():
     with pytest.raises(ValueError):
         AgentMemorySnapshot.from_dict({"version": 999})
+
+
+def test_snapshot_lock_timeout_reports_diagnostics(tmp_path: Path):
+    path = tmp_path / "state.json"
+    code = """
+from pathlib import Path
+import sys
+from agenticse.memory.persistence import snapshot_lock
+
+try:
+    with snapshot_lock(Path(sys.argv[1]), timeout_seconds=0.05):
+        pass
+except TimeoutError as exc:
+    print(exc, file=sys.stderr)
+    raise SystemExit(7)
+raise SystemExit(0)
+"""
+
+    with snapshot_lock(path, timeout_seconds=1.0):
+        result = subprocess.run(
+            [sys.executable, "-c", code, str(path)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+    assert result.returncode == 7
+    assert "Timed out waiting" in result.stderr
+    assert "retry or increase --lock-timeout" in result.stderr
+    assert "pid=" in result.stderr
+
+
+def test_snapshot_lock_file_fallback_when_fcntl_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    path = tmp_path / "state.json"
+    lock_path = path.with_name("state.json.lock")
+    monkeypatch.setattr(persistence, "fcntl", None)
+
+    with persistence.snapshot_lock(path, timeout_seconds=1.0):
+        assert "pid=" in lock_path.read_text(encoding="utf-8")
+        with pytest.raises(TimeoutError, match="retry or increase --lock-timeout"):
+            with persistence.snapshot_lock(path, timeout_seconds=0.0):
+                pass
+
+    assert not lock_path.exists()

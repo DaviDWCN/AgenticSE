@@ -18,6 +18,35 @@ from agenticse.memory.schemas import (
 )
 
 Compressor = Callable[[str], str]
+_PINNED_HIGH_RES_KINDS = ("stack_trace", "crash")
+
+
+def _is_pinned_high_res(text: str) -> bool:
+    return any(f":{kind}]" in text for kind in _PINNED_HIGH_RES_KINDS)
+
+
+def _truncate_to_budget(text: str, max_tokens: int) -> str:
+    if max_tokens <= 0:
+        return ""
+    if estimate_tokens(text) <= max_tokens:
+        return text
+
+    words: List[str] = []
+    for word in text.split():
+        candidate = " ".join([*words, word])
+        if estimate_tokens(candidate) > max_tokens:
+            break
+        words.append(word)
+    if words:
+        return " ".join(words)
+
+    chars: List[str] = []
+    for char in text:
+        candidate = "".join([*chars, char])
+        if estimate_tokens(candidate) > max_tokens:
+            break
+        chars.append(char)
+    return "".join(chars).rstrip()
 
 
 def _default_mid_compressor(text: str) -> str:
@@ -141,8 +170,7 @@ class WorkingMemoryController:
         """Promote a filtered :class:`SensoryEvent` into working memory."""
 
         prefix = f"[{event.source}:{event.kind}]"
-        # Stack traces and crash payloads are pinned in the high-res tier; the
-        # spec mandates these survive paging.
+        # Stack traces and crash payloads receive pinned high-res retention.
         resolution = (
             Resolution.HIGH
             if event.kind in {"stack_trace", "crash", "user_msg"}
@@ -205,12 +233,21 @@ class WorkingMemoryController:
             return self.segments.mid_res
         return self.segments.low_res
 
+    def _oldest_unpinned_high_index(self) -> Optional[int]:
+        for index, item in enumerate(self.segments.high_res):
+            if not _is_pinned_high_res(item):
+                return index
+        return None
+
     def _enforce_budget(self) -> None:
         budget = self.effective_budget
-        # Demote oldest high-res → mid-res.
+        # Demote oldest non-pinned high-res → mid-res.
         guard = 0
-        while self.token_usage() > budget and self.segments.high_res:
-            oldest = self.segments.high_res.pop(0)
+        while self.token_usage() > budget:
+            index = self._oldest_unpinned_high_index()
+            if index is None:
+                break
+            oldest = self.segments.high_res.pop(index)
             self.segments.mid_res.append(self._mid_compressor(oldest))
             guard += 1
             if guard > 10_000:  # pragma: no cover - defensive
@@ -227,6 +264,23 @@ class WorkingMemoryController:
         guard = 0
         while self.token_usage() > budget and self.segments.low_res:
             self.segments.low_res.pop(0)
+            guard += 1
+            if guard > 10_000:  # pragma: no cover - defensive
+                break
+        # If pinned high-res entries alone exceed the budget, keep the largest
+        # possible high-res prefix instead of silently demoting the trace.
+        guard = 0
+        while self.token_usage() > budget and self.segments.high_res:
+            item = self.segments.high_res[0]
+            other_usage = self.token_usage() - estimate_tokens(item)
+            allowance = budget - other_usage
+            compacted = _truncate_to_budget(item, allowance)
+            if compacted:
+                if compacted == item:
+                    break
+                self.segments.high_res[0] = compacted
+            else:
+                self.segments.high_res.pop(0)
             guard += 1
             if guard > 10_000:  # pragma: no cover - defensive
                 break

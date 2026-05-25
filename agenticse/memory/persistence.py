@@ -17,7 +17,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
-import fcntl
+try:  # pragma: no cover - exercised only on platforms without fcntl
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None  # type: ignore[assignment]
 
 from agenticse.memory.long_term import LongTermMemoryMatrix
 from agenticse.memory.schemas import WorkingMemoryState, state_from_dict
@@ -138,6 +141,27 @@ def backup_path(path: Path) -> Path:
     return path.with_name(f"{path.name}.bak")
 
 
+def _lock_timeout_error(lock_path: Path, timeout_seconds: float) -> TimeoutError:
+    metadata = ""
+    try:
+        metadata = lock_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    details = f" Lock metadata: {metadata}." if metadata else ""
+    return TimeoutError(
+        f"Timed out waiting {timeout_seconds:.2f}s for snapshot lock: {lock_path}."
+        f"{details} Another agenticse process may be writing the snapshot; "
+        "retry or increase --lock-timeout."
+    )
+
+
+def _write_lock_metadata(lock_file: Any) -> None:
+    lock_file.seek(0)
+    lock_file.truncate()
+    lock_file.write(f"pid={os.getpid()} acquired_at={time.time():.6f}\n")
+    lock_file.flush()
+
+
 @contextmanager
 def snapshot_lock(
     path: Path,
@@ -149,15 +173,40 @@ def snapshot_lock(
         raise ValueError("timeout_seconds must be non-negative")
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_name(f"{path.name}.lock")
+    if fcntl is None:
+        deadline = time.time() + timeout_seconds
+        acquired = False
+        while True:
+            try:
+                fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                with os.fdopen(fd, "w", encoding="utf-8") as lock_file:
+                    _write_lock_metadata(lock_file)
+                acquired = True
+                break
+            except FileExistsError:
+                if time.time() >= deadline:
+                    raise _lock_timeout_error(lock_path, timeout_seconds)
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            if acquired:
+                try:
+                    lock_path.unlink()
+                except FileNotFoundError:
+                    pass
+        return
+
     with lock_path.open("a", encoding="utf-8") as lock_file:
         deadline = time.time() + timeout_seconds
         while True:
             try:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _write_lock_metadata(lock_file)
                 break
             except BlockingIOError:
                 if time.time() >= deadline:
-                    raise TimeoutError(f"Timed out waiting for snapshot lock: {lock_path}")
+                    raise _lock_timeout_error(lock_path, timeout_seconds)
                 time.sleep(0.05)
         try:
             yield

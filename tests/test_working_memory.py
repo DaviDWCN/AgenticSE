@@ -66,6 +66,30 @@ def test_critical_traces_pinned_in_high_res():
     assert any("ast_change" in s for s in c.segments.mid_res)
 
 
+def test_critical_traces_stay_high_res_under_budget_pressure():
+    state = WorkingMemoryState(token_budget=12)
+    c = WorkingMemoryController(state=state, safety_margin=0.0)
+    c.ingest_event(
+        SensoryEvent(
+            source="terminal",
+            payload="Traceback CriticalFailureService failed at line 123",
+            kind="stack_trace",
+        )
+    )
+
+    for i in range(4):
+        c.add(
+            f"class C{i} {{ public void run{i}() {{ doWork{i}(); }} }}",
+            Resolution.HIGH,
+        )
+
+    assert c.token_usage() <= c.token_budget
+    assert any("stack_trace" in s for s in c.segments.high_res)
+    assert not any(
+        "stack_trace" in s for s in c.segments.mid_res + c.segments.low_res
+    )
+
+
 def test_render_context_orders_tiers():
     c = WorkingMemoryController()
     c.add("HIGH-A", Resolution.HIGH)
