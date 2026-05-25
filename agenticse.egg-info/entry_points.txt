@@ -1,2 +1,0 @@
-[console_scripts]
-agenticse = agenticse.cli:main
