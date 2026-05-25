@@ -31,7 +31,7 @@ pip install -e ".[dev]"   # for pytest
 python -m pytest tests/ -v
 ```
 
-53 unit tests cover every layer, workflow, persistence snapshots, the CLI and golden-query eval.
+57 unit tests cover every layer, workflow, persistence snapshots, the CLI and golden-query eval.
 
 ## Agent CLI
 
@@ -163,6 +163,8 @@ agenticse/
 examples/
   ams_demo.py
 tests/
+  test_cli.py
+  test_persistence.py
   test_ams.py
   test_graph_store.py
   test_vector_store.py
